@@ -30,7 +30,7 @@ func NewRetrospector() *Retrospector {
 // Review 对整轮执行做全局复盘
 func (r *Retrospector) Review(userInput, goal, history, envPrompt string) (*Retrospection, error) {
 	systemPrompt := `你是一个严格的任务复盘专家。请对整轮 Agent 执行做全局复盘。
-输出严格 JSON：
+输出严格 JSON:
 {
   "goal_achieved": true/false,
   "summary": "完成情况概述",
@@ -39,9 +39,9 @@ func (r *Retrospector) Review(userInput, goal, history, envPrompt string) (*Retr
   "quality_score": 0-10
 }
 评判标准：
-- goal_achieved：用户原始意图是否被真正满足（不是“执行了步骤”就算达成）
-- root_causes：区分“工具报错”和“根本设计缺陷”
-- 只输出 JSON，不要解释`
+- goal_achieved:用户原始意图是否被真正满足(不是"执行了步骤"就算达成)
+- root_causes:区分“工具报错”和“根本设计缺陷”
+- 只输出 JSON,不要解释`
 
 	userPrompt := fmt.Sprintf(`%s
 

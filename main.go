@@ -14,7 +14,7 @@ import (
 func main() {
 	config.Load()
 
-	fmt.Println("  🛜正在连接 MCP 服务器...")
+	fmt.Println("🛜正在连接 MCP 服务器...")
 	if err := tools.InitMCP(config.MCPConfigPath); err != nil {
 		fmt.Printf("⚠️MCP 初始化失败: %v(将仅使用本地工具)\n", err)
 	}

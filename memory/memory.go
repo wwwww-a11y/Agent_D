@@ -37,9 +37,9 @@ func NewMemory(sessionID string, maxMessages int, storageDir string) (*Memory, e
 	}
 
 	if err := m.load(); err == nil {
-		fmt.Printf("  已加载历史会话 [%s]，共 %d 条消息\n", m.SessionID, len(m.Messages))
+		fmt.Printf("🤔已加载历史会话 [%s]，共 %d 条消息\n", m.SessionID, len(m.Messages))
 	} else {
-		fmt.Printf("  创建新会话 [%s]\n", m.SessionID)
+		fmt.Printf("🆕创建新会话 [%s]\n", m.SessionID)
 	}
 
 	return m, nil
@@ -75,7 +75,7 @@ func (m *Memory) Add(msg deepseek.ChatCompletionMessage) {
 	m.compress()
 
 	if err := m.save(); err != nil {
-		fmt.Printf("   记忆持久化失败: %v\n", err)
+		fmt.Printf("☹️记忆持久化失败: %v\n", err)
 	}
 }
 
@@ -102,7 +102,7 @@ func (m *Memory) compress() {
 	if len(others) > keep {
 		dropped := len(others) - keep
 		others = others[dropped:]
-		fmt.Printf("     记忆压缩：丢弃 %d 条最早消息，保留最近 %d 条\n", dropped, keep)
+		fmt.Printf("🟣记忆压缩：丢弃 %d 条最早消息，保留最近 %d 条\n", dropped, keep)
 	}
 
 	m.Messages = append(systemMsgs, others...)

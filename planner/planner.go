@@ -34,7 +34,7 @@ func NewPlanner() *Planner {
 // MakePlan 初始规划
 func (p *Planner) MakePlan(userInput, toolDesc, envPrompt string) (*Plan, error) {
 	systemPrompt := `你是一个任务规划器。请结合【环境信息】把用户任务拆解为可执行的步骤。
-输出严格 JSON：
+输出严格 JSON:
 {
   "goal": "任务目标",
   "steps": [
@@ -44,10 +44,10 @@ func (p *Planner) MakePlan(userInput, toolDesc, envPrompt string) (*Plan, error)
 规则：
 - 优先利用环境中已有的文件/目录，避免重复创建
 - 文件路径一律使用相对沙箱的路径
-- 不需要工具的步骤 tool 填 "none"，args 填 "{}"
-- 只输出 JSON，不要解释、不要 markdown 代码块`
+- 不需要工具的步骤 tool 填 "none",args 填 "{}"
+- 只输出 JSON,不要解释、不要 markdown 代码块`
 
-	userPrompt := fmt.Sprintf("%s\n\n可用工具：\n%s\n\n用户任务：%s", envPrompt, toolDesc, userInput)
+	userPrompt := fmt.Sprintf("%s\n\n可用工具:\n%s\n\n用户任务:%s", envPrompt, toolDesc, userInput)
 
 	return p.call(userPrompt, systemPrompt)
 }
@@ -55,7 +55,7 @@ func (p *Planner) MakePlan(userInput, toolDesc, envPrompt string) (*Plan, error)
 // Replan 动态重规划
 func (p *Planner) Replan(originalGoal, toolDesc, envPrompt, history, reason string) (*Plan, error) {
 	systemPrompt := `你是一个动态重规划器。原计划执行遇到阻塞，需要你根据最新情况重新规划。
-输出严格 JSON：
+输出严格 JSON:
 {
   "goal": "调整后的目标",
   "steps": [
@@ -67,11 +67,11 @@ func (p *Planner) Replan(originalGoal, toolDesc, envPrompt, history, reason stri
 - 失败步骤要吸取教训，换一种可行策略
 - 结合最新【环境信息】判断哪些文件/目录已存在
 - 如果原目标已无法达成，可以调整目标为“最小可行目标”
-- 只输出 JSON，不要解释`
+- 只输出 JSON,不要解释`
 
 	userPrompt := fmt.Sprintf(`%s
 
-可用工具：
+🔧可用工具：
 %s
 
 原始目标：%s

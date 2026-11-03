@@ -29,7 +29,7 @@ func NewReflector() *Reflector {
 // Reflect 带环境上下文反思
 func (r *Reflector) Reflect(stepDesc, tool, args, errMsg, history, envPrompt string) (*Reflection, error) {
 	systemPrompt := `你是一个错误分析器。工具执行失败了，请结合【环境信息】分析原因并给出修正方案。
-输出严格 JSON：
+输出严格 JSON:
 {
   "reason": "失败原因分析",
   "strategy": "修正策略描述",
@@ -37,8 +37,8 @@ func (r *Reflector) Reflect(stepDesc, tool, args, errMsg, history, envPrompt str
   "args": "建议的新参数JSON字符串",
   "give_up": false
 }
-如果判断无法修复（权限、目标不存在等），give_up 设为 true。
-只输出 JSON，不要解释。`
+如果判断无法修复(权限、目标不存在等),give_up 设为 true。
+只输出 JSON,不要解释。`
 
 	userPrompt := fmt.Sprintf(`%s
 
@@ -61,14 +61,14 @@ func (r *Reflector) Reflect(stepDesc, tool, args, errMsg, history, envPrompt str
 	ctx := context.Background()
 	resp, err := r.client.CreateChatCompletion(ctx, req)
 	if err != nil {
-		return nil, fmt.Errorf("反思请求失败: %w", err)
+		return nil, fmt.Errorf("🤯反思请求失败: %w", err)
 	}
 
 	content := stripFence(strings.TrimSpace(resp.Choices[0].Message.Content))
 
 	var ref Reflection
 	if err := json.Unmarshal([]byte(content), &ref); err != nil {
-		return nil, fmt.Errorf("反思解析失败: %w\n原始: %s", err, content)
+		return nil, fmt.Errorf("🤯反思解析失败: %w\n原始: %s", err, content)
 	}
 	return &ref, nil
 }

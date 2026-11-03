@@ -103,7 +103,7 @@ func (c *MCPClient) connect(name string, sc MCPServerConfig) error {
 			InputSchema: schemaToMap(t.InputSchema),
 			ServerName:  name,
 		})
-		fmt.Printf("   🔧 发现工具: %s - %s\n", t.Name, t.Description)
+		fmt.Printf("🔧 发现工具: %s - %s\n", t.Name, t.Description)
 	}
 
 	return nil
