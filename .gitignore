@@ -1,0 +1,29 @@
+# 环境变量（含密钥，切勿提交）
+.env
+
+# MCP 配置（可能含密钥）
+mcp_servers.json
+
+# 数据目录
+data/
+
+# 编译产物
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# 测试文件
+*.test
+
+# 输出目录
+/bin/
+/dist/
+
+# IDE
+.vscode/
+.idea/
+
+# Go 依赖
+vendor/
