@@ -6,6 +6,7 @@ import (
 	"deepseek-agent/config"
 	"deepseek-agent/memory"
 	"deepseek-agent/tools"
+	"deepseek-agent/ui"
 	"fmt"
 	"os"
 	"strings"
@@ -14,20 +15,17 @@ import (
 func main() {
 	config.Load()
 
-	fmt.Println("🛜正在连接 MCP 服务器...")
+	ui.Banner(config.DeepSeekModel, config.SandboxDir)
+	ui.Note("正在连接 MCP 服务器…")
 	if err := tools.InitMCP(config.MCPConfigPath); err != nil {
-		fmt.Printf("⚠️MCP 初始化失败: %v(将仅使用本地工具)\n", err)
+		ui.Warn(fmt.Sprintf("MCP 初始化失败: %v（将仅使用本地工具）", err))
 	}
 	defer tools.CloseMCP()
-
-	fmt.Println("=== DeepSeek Go Agent(感知 + 规划 + 反思 + 重规划 + 复盘 + 记忆 + MCP)===")
-	fmt.Printf("模型: %s | 沙箱: %s\n", config.DeepSeekModel, config.SandboxDir)
-	fmt.Println("命令: /reset | /stats | /new <会话ID> | exit")
 
 	sessionID := "default"
 	mem, err := memory.NewMemory(sessionID, config.MemoryMaxMessages, config.MemoryDir)
 	if err != nil {
-		fmt.Printf("❌初始化记忆失败: %v\n", err)
+		ui.Fail(fmt.Sprintf("初始化记忆失败: %v", err))
 		os.Exit(1)
 	}
 
@@ -35,7 +33,7 @@ func main() {
 	reader := bufio.NewReader(os.Stdin)
 
 	for {
-		fmt.Print("\n👱你: ")
+		ui.UserPrompt()
 		input, _ := reader.ReadString('\n')
 		input = strings.TrimSpace(input)
 
@@ -43,32 +41,32 @@ func main() {
 		case input == "":
 			continue
 		case input == "exit" || input == "quit":
-			fmt.Println("🖐️再见！")
+			ui.Note("再见。")
 			return
 		case input == "/reset":
 			if err := mem.Reset(); err != nil {
-				fmt.Printf("❌重置失败: %v\n", err)
+				ui.Fail(fmt.Sprintf("重置失败: %v", err))
 			} else {
-				fmt.Println("🧹会话记忆已清空")
+				ui.Note("会话记忆已清空")
 			}
 			continue
 		case input == "/stats":
-			fmt.Printf("🔢%s\n", mem.Stats())
+			ui.Meta("会话统计", mem.Stats())
 			continue
 		case strings.HasPrefix(input, "/new "):
 			newID := strings.TrimSpace(strings.TrimPrefix(input, "/new "))
 			if newID == "" {
-				fmt.Println("⚠️请提供会话 ID,例如 /new work")
+				ui.Warn("请提供会话 ID，例如 /new work")
 				continue
 			}
 			newMem, err := memory.NewMemory(newID, config.MemoryMaxMessages, config.MemoryDir)
 			if err != nil {
-				fmt.Printf("❌切换会话失败: %v\n", err)
+				ui.Fail(fmt.Sprintf("切换会话失败: %v", err))
 				continue
 			}
 			mem = newMem
 			myAgent = agent.NewAgent(mem)
-			fmt.Printf("🔗已切换到会话 [%s]\n", newID)
+			ui.Note("已切换到会话 [" + newID + "]")
 			continue
 		}
 

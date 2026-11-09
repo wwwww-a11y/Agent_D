@@ -204,6 +204,10 @@ func executeLocal(name string, args map[string]interface{}) (string, error) {
 	case "get_weather":
 		city, _ := args["city"].(string)
 		if city == "" {
+			// 兼容模型把参数名写成 adcode 的情况
+			city, _ = args["adcode"].(string)
+		}
+		if city == "" {
 			return "", fmt.Errorf("缺少城市 adcode")
 		}
 		if config.AMapKey == "" {
@@ -254,6 +258,14 @@ func fetchAMapWeather(adcode string) (string, error) {
 	}
 
 	l := result.Lives[0]
+
+	// 查询成功后直接弹窗打开第三方官方天气页面（可用 WEATHER_POPUP=false 关闭）
+	if config.WeatherPopup {
+		if err := OpenWeatherSite(l.City, adcode); err != nil {
+			fmt.Printf("⚠️天气页面打开失败: %v\n", err)
+		}
+	}
+
 	return fmt.Sprintf(
 		"城市: %s\n天气: %s\n温度: %s°C\n风向: %s\n风力: %s级\n湿度: %s%%\n发布时间: %s",
 		l.City, l.Weather, l.Temperature, l.WindDirection, l.WindPower, l.Humidity, l.ReportTime,

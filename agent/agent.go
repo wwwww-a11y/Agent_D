@@ -9,6 +9,7 @@ import (
 	"deepseek-agent/retrospector"
 	"deepseek-agent/sensor"
 	"deepseek-agent/tools"
+	"deepseek-agent/ui"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -36,11 +37,12 @@ func NewAgent(mem *memory.Memory) *Agent {
 
 // Run 主流程：闲聊短路 → 感知 → 规划 → 执行 → 复盘 → 总结
 func (a *Agent) Run(userInput string) {
-	fmt.Printf("\n👤用户: %s\n", userInput)
+	ui.Task(userInput)
 
 	// ========== 闲聊短路 ==========
 	if a.isChitchat(userInput) {
-		fmt.Println("\n  [直接回复]")
+		ui.Stage(1, "快速回复")
+		ui.Note("闲聊输入，跳过规划与执行，直接回复")
 		resp, err := callDeepSeek(&deepseek.ChatCompletionRequest{
 			Model: config.DeepSeekModel,
 			Messages: []deepseek.ChatCompletionMessage{
@@ -49,7 +51,7 @@ func (a *Agent) Run(userInput string) {
 			},
 		})
 		if err != nil {
-			fmt.Printf("☹️回复失败: %v\n", err)
+			ui.Fail(fmt.Sprintf("回复失败: %v", err))
 			return
 		}
 		printReply(resp)
@@ -59,33 +61,37 @@ func (a *Agent) Run(userInput string) {
 	}
 
 	// ========== 0. 环境感知 ==========
-	fmt.Println("\n😶[环境感知] 正在采集环境信息...")
+	ui.Stage(1, "环境感知")
+	ui.Note("采集系统信息、沙箱目录与可用工具…")
 	snapshot := a.sensor.Snapshot()
 	envPrompt := snapshot.ToPrompt()
-	fmt.Printf("🔉系统: %s/%s | 沙箱: %s\n", snapshot.OS, snapshot.Arch, snapshot.SandboxDir)
-	fmt.Printf("👀沙箱内容预览:\n%s", indent(snapshot.SandboxTree, "   "))
+	ui.Meta("系统", fmt.Sprintf("%s/%s  ·  %s", snapshot.OS, snapshot.Arch, snapshot.GoVersion))
+	ui.Meta("沙箱", snapshot.SandboxDir)
+	ui.Block("沙箱内容", snapshot.SandboxTree)
 
 	// ========== 1. 规划 ==========
-	fmt.Println("\n📅[规划阶段] 结合环境拆解任务...")
+	ui.Stage(2, "任务规划")
+	ui.Note("结合环境信息，把任务拆成可执行步骤")
 	plan, err := a.planner.MakePlan(userInput, tools.ToolDescription(), envPrompt)
 	if err != nil {
-		fmt.Printf("❌规划失败: %v\n", err)
+		ui.Fail(fmt.Sprintf("规划失败: %v", err))
 		return
 	}
 	a.printPlan(plan)
 
 	// ========== 2. 人类确认 ==========
 	if config.RequireConfirm {
-		fmt.Print("\n🤔是否执行此计划?(y/n): ")
+		ui.Prompt("是否执行此计划? (y/n): ")
 		var ans string
 		fmt.Scanln(&ans)
 		if strings.ToLower(strings.TrimSpace(ans)) != "y" {
-			fmt.Println("🖐🏻用户取消执行")
+			ui.Warn("用户取消执行")
 			return
 		}
 	}
 
 	// ========== 3. 执行循环 ==========
+	ui.Stage(3, "计划执行")
 	var history strings.Builder
 	currentPlan := plan
 	replanCount := 0
@@ -100,7 +106,7 @@ func (a *Agent) Run(userInput string) {
 				continue
 			}
 
-			fmt.Printf("\n👣[步骤 %d] %s\n", step.ID, step.Description)
+			ui.Step(step.ID, step.Description, step.Tool)
 
 			ok := a.executeStepWithRetry(step, &history)
 			if !ok {
@@ -116,13 +122,13 @@ func (a *Agent) Run(userInput string) {
 		}
 
 		if replanCount >= config.MaxReplans {
-			fmt.Printf("\n⭕已达最大重规划次数 (%d)，终止执行\n", config.MaxReplans)
+			ui.Fail(fmt.Sprintf("已达最大重规划次数 (%d)，终止执行", config.MaxReplans))
 			overallSuccess = false
 			break
 		}
 
 		replanCount++
-		fmt.Printf("\n⭕[动态重规划 #%d] 原计划受阻，正在重新规划...\n", replanCount)
+		ui.Replan(replanCount)
 
 		freshEnv := a.sensor.Snapshot().ToPrompt()
 		reason := fmt.Sprintf("步骤执行失败，历史记录如下：\n%s", history.String())
@@ -132,37 +138,31 @@ func (a *Agent) Run(userInput string) {
 			history.String(), reason,
 		)
 		if err != nil {
-			fmt.Printf("❌重规划失败: %v\n", err)
+			ui.Fail(fmt.Sprintf("重规划失败: %v", err))
 			overallSuccess = false
 			break
 		}
 
-		fmt.Println("🆕新计划：")
+		ui.Note("采纳新计划：")
 		a.printPlan(newPlan)
 		currentPlan = newPlan
 	}
 
 	// ========== 4. 全局复盘 ==========
-	fmt.Println("\n🔵[全局复盘] 正在评估任务达成情况...")
+	ui.Stage(4, "全局复盘")
+	ui.Note("判断目标是否真正达成，给出评分与根因")
 	finalEnv := a.sensor.Snapshot().ToPrompt()
 	retro, err := a.retrospector.Review(userInput, currentPlan.Goal, history.String(), finalEnv)
 	if err != nil {
-		fmt.Printf("❌复盘失败: %v\n", err)
+		ui.Fail(fmt.Sprintf("复盘失败: %v", err))
 	} else {
-		fmt.Printf("📆目标达成: %v\n", retro.GoalAchieved)
-		fmt.Printf("✅质量评分: %d/10\n", retro.QualityScore)
-		fmt.Printf("🍀概述: %s\n", retro.Summary)
+		ui.Score(retro.GoalAchieved, retro.QualityScore)
+		ui.Meta("概述", retro.Summary)
 		if len(retro.RootCauses) > 0 {
-			fmt.Printf("🪾根因:\n")
-			for _, r := range retro.RootCauses {
-				fmt.Printf(" - %s\n", r)
-			}
+			ui.Block("根因", strings.Join(retro.RootCauses, "\n"))
 		}
 		if len(retro.Suggestions) > 0 {
-			fmt.Printf("🙋🏻建议:\n")
-			for _, s := range retro.Suggestions {
-				fmt.Printf(" - %s\n", s)
-			}
+			ui.Block("建议", strings.Join(retro.Suggestions, "\n"))
 		}
 	}
 
@@ -197,50 +197,47 @@ func (a *Agent) executeStepWithRetry(step *planner.PlanItem, history *strings.Bu
 	var args map[string]interface{}
 	if step.Args != "" {
 		if err := json.Unmarshal([]byte(step.Args), &args); err != nil {
-			fmt.Printf("❌参数解析失败，按空参数处理: %v\n", err)
+			ui.Warn(fmt.Sprintf("参数解析失败，按空参数处理: %v", err))
 			args = map[string]interface{}{}
 		}
 	}
 
 	for attempt := 0; attempt <= config.MaxReflectRetries; attempt++ {
-		fmt.Printf("⚒️执行工具: %s | 参数: %s\n", step.Tool, step.Args)
+		ui.Tool(step.Tool, step.Args)
 
 		result, err := tools.ExecuteTool(step.Tool, args)
 		if err == nil {
-			fmt.Printf("🟩成功: %s\n", result)
+			ui.OK(result)
 			history.WriteString(fmt.Sprintf("步骤%d %s: 成功 - %s\n", step.ID, step.Description, result))
-			// 如果这步是纯文本回复（none），把 result 当回复输出
-			if step.Tool == "none" || step.Tool == "" {
-				printReply(step.Description)
-			}
+			// 无工具步骤（none）只推进，描述已在步骤标题中显示，不重复打印
 			return true
 		}
 
-		fmt.Printf("🔺失败: %v\n", err)
+		ui.Fail(err.Error())
 		history.WriteString(fmt.Sprintf("步骤%d %s: 失败 - %v\n", step.ID, step.Description, err))
 
 		if attempt >= config.MaxReflectRetries {
-			fmt.Println("❗已达最大重试次数")
+			ui.Fail("已达最大重试次数，交给重规划处理")
 			return false
 		}
 
 		freshEnv := a.sensor.Snapshot().ToPrompt()
 
-		fmt.Printf("🥲[局部反思 %d] 正在分析失败原因...\n", attempt+1)
+		ui.Reflect(attempt + 1)
 		ref, rerr := a.reflector.Reflect(
 			step.Description, step.Tool, step.Args, err.Error(),
 			history.String(), freshEnv,
 		)
 		if rerr != nil {
-			fmt.Printf("❌反思失败: %v\n", rerr)
+			ui.Fail(fmt.Sprintf("反思失败: %v", rerr))
 			return false
 		}
 
-		fmt.Printf("🔷原因: %s\n", ref.Reason)
-		fmt.Printf("🔷策略: %s\n", ref.Strategy)
+		ui.Meta("原因", ref.Reason)
+		ui.Meta("策略", ref.Strategy)
 
 		if ref.GiveUp {
-			fmt.Println("💠模型判断单步无法修复，交由重规划处理")
+			ui.Warn("模型判断单步无法修复，交由重规划处理")
 			return false
 		}
 
@@ -252,13 +249,14 @@ func (a *Agent) executeStepWithRetry(step *planner.PlanItem, history *strings.Bu
 			args = map[string]interface{}{}
 			_ = json.Unmarshal([]byte(ref.Args), &args)
 		}
-		fmt.Println("⛏️应用修正，准备重试...")
+		ui.Note("已应用修正，准备重试…")
 	}
 	return false
 }
 
 func (a *Agent) summarize(userInput string, plan *planner.Plan, history, envPrompt string, success bool, retro *retrospector.Retrospection) {
-	fmt.Println("\n🟫[总结阶段] 正在生成执行报告...")
+	ui.Stage(5, "生成最终回复")
+	ui.Note("把执行过程与复盘结论写成中文报告")
 
 	status := "成功"
 	if !success {
@@ -283,7 +281,7 @@ func (a *Agent) summarize(userInput string, plan *planner.Plan, history, envProm
 
 	resp, err := callDeepSeek(req)
 	if err != nil {
-		fmt.Printf("❗总结失败: %v\n", err)
+		ui.Fail(fmt.Sprintf("总结失败: %v", err))
 		return
 	}
 	printReply(resp)
@@ -293,9 +291,9 @@ func (a *Agent) summarize(userInput string, plan *planner.Plan, history, envProm
 }
 
 func (a *Agent) printPlan(plan *planner.Plan) {
-	fmt.Printf("  目标: %s\n", plan.Goal)
+	ui.Meta("目标", plan.Goal)
 	for _, s := range plan.Steps {
-		fmt.Printf("[%d] %s 🔨(tool: %s)\n", s.ID, s.Description, s.Tool)
+		ui.PlanRow(s.ID, s.Description, s.Tool)
 	}
 }
 
@@ -317,8 +315,7 @@ func indent(s, prefix string) string {
 	return strings.Join(lines, "\n") + "\n"
 }
 
-// printReply 用分隔符高亮最终回复，避免被日志淹没
+// printReply 用边框高亮最终回复，避免被日志淹没
 func printReply(reply string) {
-	sep := strings.Repeat("=", 60)
-	fmt.Printf("\n%s\n💬回复:\n%s\n%s\n", sep, reply, sep)
+	ui.Reply("💬 最终回复", reply)
 }

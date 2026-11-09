@@ -21,6 +21,7 @@ var (
 	RequireConfirm    bool
 	MCPConfigPath     string
 	AMapKey           string
+	WeatherPopup      bool
 )
 
 // Load 加载 .env 文件并初始化配置
@@ -42,6 +43,7 @@ func Load() {
 	MaxReflectRetries = getEnvInt("MAX_REFLECT_RETRIES", 2)
 	MaxReplans = getEnvInt("MAX_REPLANS", 2)
 	RequireConfirm = getEnv("REQUIRE_CONFIRM", "true") == "true"
+	WeatherPopup = getEnv("WEATHER_POPUP", "true") == "true"
 
 	if DeepSeekAPIKey == "" {
 		log.Fatal("❌缺少 DEEPSEEK_API_KEY,请在 .env 文件中配置")
